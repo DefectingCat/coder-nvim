@@ -113,6 +113,7 @@ RUN useradd -m -s /usr/bin/fish coder && \
 RUN mkdir -p /home/coder/.config/fish/conf.d \
     /home/coder/.local/share/fnm \
     /home/coder/.rustup \
+    /home/coder/.cargo \
     && echo 'alias fd=fd-find' >> /home/coder/.config/fish/config.fish \
     && echo 'fnm env --use-on-cd --shell fish | source' > /home/coder/.config/fish/conf.d/fnm.fish \
     && echo 'set -gx RUSTUP_HOME /home/coder/.rustup' > /home/coder/.config/fish/conf.d/rustup.fish \
@@ -120,6 +121,8 @@ RUN mkdir -p /home/coder/.config/fish/conf.d \
     && echo 'set -gx PATH $PATH /home/coder/.cargo/bin' >> /home/coder/.config/fish/conf.d/rustup.fish \
     && FNM_DIR=/home/coder/.local/share/fnm fnm install 'lts/*' \
     && RUSTUP_HOME=/home/coder/.rustup CARGO_HOME=/home/coder/.cargo curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | RUSTUP_HOME=/home/coder/.rustup CARGO_HOME=/home/coder/.cargo sh -s -- -y --no-modify-path \
+    # 配置 Rust crates.io USTC 镜像源
+    && printf '[source.crates-io]\nreplace-with = "ustc"\n\n[source.ustc]\nregistry = "sparse+https://mirrors.ustc.edu.cn/crates.io-index/"\n\n[registries.ustc]\nindex = "sparse+https://mirrors.ustc.edu.cn/crates.io-index/"\n' > /home/coder/.cargo/config.toml \
     && chown -R coder:coder /home/coder/.config /home/coder/.local /home/coder/.rustup /home/coder/.cargo
 
 # 设置工作目录
