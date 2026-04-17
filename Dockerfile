@@ -125,12 +125,15 @@ RUN mkdir -p /home/coder/.config/fish/conf.d \
     && printf '[source.crates-io]\nreplace-with = "ustc"\n\n[source.ustc]\nregistry = "sparse+https://mirrors.ustc.edu.cn/crates.io-index/"\n\n[registries.ustc]\nindex = "sparse+https://mirrors.ustc.edu.cn/crates.io-index/"\n' > /home/coder/.cargo/config.toml \
     && chown -R coder:coder /home/coder/.config /home/coder/.local /home/coder/.rustup /home/coder/.cargo
 
-# 克隆 nvim 配置并安装插件
-RUN git clone --depth 1 https://github.com/DefectingCat/nvim /home/coder/.config/nvim \
-    && chown -R coder:coder /home/coder/.config/nvim \
-    # 首次运行 nvim headless 模式安装插件
-    && HOME=/home/coder nvim --headless '+Lazy! sync' +qa 2>/dev/null || true \
-    && chown -R coder:coder /home/coder/.local/share/nvim /home/coder/.local/state/nvim
+# 克隆 nvim 配置并安装插件 (以 coder 用户身份运行)
+RUN mkdir -p /home/coder/.local/share/nvim \
+    /home/coder/.local/state/nvim \
+    /home/coder/.cache/nvim \
+    && git clone --depth 1 https://github.com/DefectingCat/nvim /home/coder/.config/nvim \
+    && chown -R coder:coder /home/coder/.config /home/coder/.local /home/coder/.cache \
+    # 以 coder 用户身份运行 nvim，先 bootstrap lazy.nvim，再同步插件
+    && su - coder -c "nvim --headless -c 'quit' 2>&1" || true \
+    && su - coder -c "nvim --headless '+Lazy! sync' +qa 2>&1" || true
 
 # 设置工作目录
 WORKDIR /home/coder
