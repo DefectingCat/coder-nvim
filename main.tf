@@ -19,6 +19,24 @@ variable "docker_socket" {
   type        = string
 }
 
+variable "http_proxy" {
+  default     = ""
+  description = "(Optional) HTTP proxy for Docker build"
+  type        = string
+}
+
+variable "https_proxy" {
+  default     = ""
+  description = "(Optional) HTTPS proxy for Docker build"
+  type        = string
+}
+
+variable "no_proxy" {
+  default     = ""
+  description = "(Optional) No proxy hosts for Docker build"
+  type        = string
+}
+
 provider "docker" {
   # Defaulting to null if the variable is an empty string lets us have an optional variable without having to set our own default
   host = var.docker_socket != "" ? var.docker_socket : null
@@ -133,16 +151,6 @@ module "code-server" {
   order    = 1
 }
 
-# See https://registry.coder.com/modules/coder/jetbrains
-module "jetbrains" {
-  count      = data.coder_workspace.me.start_count
-  source     = "registry.coder.com/coder/jetbrains/coder"
-  version    = "~> 1.1"
-  agent_id   = coder_agent.main.id
-  agent_name = "main"
-  folder     = "/home/coder"
-  tooltip    = "You need to [install JetBrains Toolbox](https://coder.com/docs/user-guides/workspace-access/jetbrains/toolbox) to use this app."
-}
 
 resource "docker_volume" "home_volume" {
   name = "coder-${data.coder_workspace.me.id}-home"
@@ -175,8 +183,13 @@ resource "docker_volume" "home_volume" {
 resource "docker_image" "workspace_image" {
   name = "coder-rocky-dev:latest"
   build {
-    context = "."
+    context    = "."
     dockerfile = "Dockerfile"
+    build_args = merge(
+      var.http_proxy != "" ? { http_proxy = var.http_proxy } : {},
+      var.https_proxy != "" ? { https_proxy = var.https_proxy } : {},
+      var.no_proxy != "" ? { no_proxy = var.no_proxy } : {}
+    )
   }
 }
 
@@ -198,6 +211,15 @@ resource "docker_container" "workspace" {
     container_path = "/home/coder"
     volume_name    = docker_volume.home_volume.name
     read_only      = false
+  }
+
+  # Health check
+  healthcheck {
+    test     = ["CMD-SHELL", "pgrep fish || exit 1"]
+    interval = "30s"
+    timeout  = "5s"
+    retries  = 3
+    start_period = "10s"
   }
 
   # Add labels in Docker to keep track of orphan resources.
