@@ -90,9 +90,17 @@ RUN git config --global http.version HTTP/1.1 \
 # 安装 fnm (Fast Node Manager)
 RUN curl --retry 3 --retry-delay 5 -fsSL https://fnm.vercel.app/install | bash -s -- --install-dir /usr/local/fnm --skip-shell \
     && ln -s /usr/local/fnm/fnm /usr/local/bin/fnm \
+    # 安装 Go 1.26.2
+    && curl --retry 3 --retry-delay 5 -fsSL https://go.dev/dl/go1.26.2.linux-amd64.tar.gz -o /tmp/go.tar.gz \
+    && rm -rf /usr/local/go \
+    && tar -C /usr/local -xzf /tmp/go.tar.gz \
+    && rm /tmp/go.tar.gz \
     # 清理
     && dnf -y clean all \
     && rm -rf /var/cache/dnf
+
+# 设置 Go 环境变量
+ENV PATH=$PATH:/usr/local/go/bin
 
 # 创建 coder 用户，使用 fish 作为默认 shell
 RUN useradd -m -s /usr/bin/fish coder && \
@@ -100,13 +108,18 @@ RUN useradd -m -s /usr/bin/fish coder && \
     chmod 0440 /etc/sudoers.d/coder
 
 # 为 coder 用户创建 fd 别名 (EPEL 的 fd-find 命令是 fd-find 而非 fd)
-# 并安装 Node.js lts via fnm
+# 并安装 Node.js lts via fnm 和 Rust via rustup
 RUN mkdir -p /home/coder/.config/fish/conf.d \
     /home/coder/.local/share/fnm \
+    /home/coder/.rustup \
     && echo 'alias fd=fd-find' >> /home/coder/.config/fish/config.fish \
     && echo 'fnm env --use-on-cd --shell fish | source' > /home/coder/.config/fish/conf.d/fnm.fish \
+    && echo 'set -gx RUSTUP_HOME /home/coder/.rustup' > /home/coder/.config/fish/conf.d/rustup.fish \
+    && echo 'set -gx CARGO_HOME /home/coder/.cargo' >> /home/coder/.config/fish/conf.d/rustup.fish \
+    && echo 'set -gx PATH $PATH /home/coder/.cargo/bin' >> /home/coder/.config/fish/conf.d/rustup.fish \
     && FNM_DIR=/home/coder/.local/share/fnm fnm install 'lts/*' \
-    && chown -R coder:coder /home/coder/.config /home/coder/.local
+    && RUSTUP_HOME=/home/coder/.rustup CARGO_HOME=/home/coder/.cargo curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | RUSTUP_HOME=/home/coder/.rustup CARGO_HOME=/home/coder/.cargo sh -s -- -y --no-modify-path \
+    && chown -R coder:coder /home/coder/.config /home/coder/.local /home/coder/.rustup /home/coder/.cargo
 
 # 设置工作目录
 WORKDIR /home/coder
