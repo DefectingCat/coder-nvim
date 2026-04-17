@@ -71,6 +71,7 @@ RUN dnf -y update && \
     # 开发工具 (从 EPEL)
     ripgrep \
     fd-find \
+    fastfetch \
     # Neovim 编译依赖
     ninja-build \
     cmake \
