@@ -1,6 +1,46 @@
-FROM rockylinux:9
+FROM rockylinux:9 AS builder
 
 # 代理设置 - 构建时从宿主机继承
+ARG http_proxy
+ARG https_proxy
+ARG no_proxy
+
+ENV http_proxy=${http_proxy} \
+    https_proxy=${https_proxy}
+
+# 配置 USTC 镜像源
+RUN sed -e 's|^mirrorlist=|#mirrorlist=|g' \
+        -e 's|^#baseurl=http://dl.rockylinux.org/$contentdir|baseurl=https://mirrors.ustc.edu.cn/rocky|g' \
+        -i.bak \
+        /etc/yum.repos.d/rocky.repo \
+        /etc/yum.repos.d/rocky-extras.repo \
+    && dnf makecache
+
+# 安装编译依赖
+RUN dnf -y install epel-release && \
+    dnf -y config-manager --set-enabled crb && \
+    sed -e 's|^metalink=|#metalink=|g' \
+        -e 's|^#baseurl=https\?://download.fedoraproject.org/pub/epel/|baseurl=https://mirrors.ustc.edu.cn/epel/|g' \
+        -e 's|^#baseurl=https\?://download.example/pub/epel/|baseurl=https://mirrors.ustc.edu.cn/epel/|g' \
+        -i.bak /etc/yum.repos.d/epel{,-testing}.repo \
+    && dnf makecache \
+    && dnf -y --allowerasing install git cmake ninja-build gcc gcc-c++ make gettext curl glibc-gconv-extra
+
+# 编译 Neovim v0.12.1 (使用 tarball 下载，更稳定)
+RUN curl --retry 5 --retry-delay 3 -fsSL https://github.com/neovim/neovim/archive/refs/tags/v0.12.1.tar.gz -o /tmp/neovim.tar.gz \
+    && tar -xzf /tmp/neovim.tar.gz -C /tmp \
+    && cd /tmp/neovim-0.12.1 \
+    && make CMAKE_BUILD_TYPE=Release \
+    && make install \
+    && rm -rf /tmp/neovim-0.12.1 /tmp/neovim.tar.gz
+
+# 下载 Go
+RUN curl --retry 3 --retry-delay 5 -fsSL https://go.dev/dl/go1.26.2.linux-amd64.tar.gz -o /tmp/go.tar.gz
+
+# ============ 运行阶段 ============
+FROM rockylinux:9
+
+# 代理设置
 ARG http_proxy
 ARG https_proxy
 ARG no_proxy
@@ -20,96 +60,45 @@ RUN sed -e 's|^mirrorlist=|#mirrorlist=|g' \
         /etc/yum.repos.d/rocky-extras.repo \
     && dnf makecache
 
-# 安装基础工具和开发环境
-# 启用 EPEL 和 CRB 仓库以获取更多工具
-RUN dnf -y update && \
-    dnf -y install epel-release && \
+# 安装运行时依赖
+RUN dnf -y install epel-release && \
     dnf -y config-manager --set-enabled crb && \
-    # 配置 EPEL 镜像源
     sed -e 's|^metalink=|#metalink=|g' \
         -e 's|^#baseurl=https\?://download.fedoraproject.org/pub/epel/|baseurl=https://mirrors.ustc.edu.cn/epel/|g' \
         -e 's|^#baseurl=https\?://download.example/pub/epel/|baseurl=https://mirrors.ustc.edu.cn/epel/|g' \
         -i.bak /etc/yum.repos.d/epel{,-testing}.repo \
     && dnf makecache \
     && dnf -y --allowerasing install \
-    # 基础工具
-    wget \
-    git \
-    vim \
-    nano \
-    unzip \
-    zip \
-    tar \
-    gzip \
-    bzip2 \
-    xz \
-    # 开发工具
-    gcc \
-    gcc-c++ \
-    make \
-    autoconf \
-    automake \
-    libtool \
-    pkg-config \
-    # 系统工具
-    sudo \
-    passwd \
-    openssh-server \
-    procps-ng \
-    htop \
-    net-tools \
-    bind-utils \
-    lsof \
-    strace \
-    tmux \
-    screen \
-    fish \
-    # Python
-    python3 \
-    python3-pip \
-    python3-devel \
-    # 开发工具 (从 EPEL)
-    ripgrep \
-    fd-find \
-    fastfetch \
-    # Neovim 编译依赖
-    ninja-build \
-    cmake \
-    gettext \
-    curl \
-    glibc-gconv-extra
-
-# 从源码编译安装 Neovim v0.12.1 (独立步骤，便于重试)
-RUN git config --global http.version HTTP/1.1 \
-    && git config --global http.postBuffer 524288000 \
-    && git clone --depth 1 --branch v0.12.1 https://github.com/neovim/neovim /tmp/neovim \
-    && cd /tmp/neovim \
-    && make CMAKE_BUILD_TYPE=RelWithDebInfo \
-    && make install \
-    && rm -rf /tmp/neovim
-
-# 安装 fnm (Fast Node Manager)
-RUN curl --retry 3 --retry-delay 5 -fsSL https://fnm.vercel.app/install | bash -s -- --install-dir /usr/local/fnm --skip-shell \
-    && ln -s /usr/local/fnm/fnm /usr/local/bin/fnm \
-    # 安装 Go 1.26.2
-    && curl --retry 3 --retry-delay 5 -fsSL https://go.dev/dl/go1.26.2.linux-amd64.tar.gz -o /tmp/go.tar.gz \
-    && rm -rf /usr/local/go \
-    && tar -C /usr/local -xzf /tmp/go.tar.gz \
-    && rm /tmp/go.tar.gz \
-    # 清理
+    wget git vim nano unzip zip tar gzip bzip2 xz \
+    sudo passwd openssh-server procps-ng htop net-tools bind-utils lsof strace \
+    tmux screen fish \
+    python3 python3-pip python3-devel \
+    ripgrep fd-find fastfetch curl \
     && dnf -y clean all \
     && rm -rf /var/cache/dnf
 
-# 设置 Go 环境变量
+# 从构建阶段复制 Neovim
+COPY --from=builder /usr/local/bin/nvim /usr/local/bin/nvim
+COPY --from=builder /usr/local/share/nvim /usr/local/share/nvim
+
+# 从构建阶段复制并安装 Go
+COPY --from=builder /tmp/go.tar.gz /tmp/go.tar.gz
+RUN rm -rf /usr/local/go \
+    && tar -C /usr/local -xzf /tmp/go.tar.gz \
+    && rm /tmp/go.tar.gz
+
 ENV PATH=$PATH:/usr/local/go/bin
 
-# 创建 coder 用户，使用 fish 作为默认 shell
+# 安装 fnm
+RUN curl --retry 3 --retry-delay 5 -fsSL https://fnm.vercel.app/install | bash -s -- --install-dir /usr/local/fnm --skip-shell \
+    && ln -s /usr/local/fnm/fnm /usr/local/bin/fnm
+
+# 创建 coder 用户
 RUN useradd -m -s /usr/bin/fish coder && \
     echo "coder ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers.d/coder && \
     chmod 0440 /etc/sudoers.d/coder
 
-# 为 coder 用户创建 fd 别名 (EPEL 的 fd-find 命令是 fd-find 而非 fd)
-# 并安装 Node.js lts via fnm 和 Rust via rustup
+# 配置 coder 用户环境和安装开发工具
 RUN mkdir -p /home/coder/.config/fish/conf.d \
     /home/coder/.local/share/fnm \
     /home/coder/.rustup \
@@ -121,25 +110,18 @@ RUN mkdir -p /home/coder/.config/fish/conf.d \
     && echo 'set -gx PATH $PATH /home/coder/.cargo/bin' >> /home/coder/.config/fish/conf.d/rustup.fish \
     && FNM_DIR=/home/coder/.local/share/fnm fnm install 'lts/*' \
     && RUSTUP_HOME=/home/coder/.rustup CARGO_HOME=/home/coder/.cargo curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | RUSTUP_HOME=/home/coder/.rustup CARGO_HOME=/home/coder/.cargo sh -s -- -y --no-modify-path \
-    # 配置 Rust crates.io USTC 镜像源
     && printf '[source.crates-io]\nreplace-with = "ustc"\n\n[source.ustc]\nregistry = "sparse+https://mirrors.ustc.edu.cn/crates.io-index/"\n\n[registries.ustc]\nindex = "sparse+https://mirrors.ustc.edu.cn/crates.io-index/"\n' > /home/coder/.cargo/config.toml \
     && chown -R coder:coder /home/coder/.config /home/coder/.local /home/coder/.rustup /home/coder/.cargo
 
-# 克隆 nvim 配置并安装插件 (以 coder 用户身份运行)
+# 克隆 nvim 配置并安装插件
 RUN mkdir -p /home/coder/.local/share/nvim \
     /home/coder/.local/state/nvim \
     /home/coder/.cache/nvim \
     && git clone --depth 1 https://github.com/DefectingCat/nvim /home/coder/.config/nvim \
     && chown -R coder:coder /home/coder/.config /home/coder/.local /home/coder/.cache \
-    # 以 coder 用户身份运行 nvim，先 bootstrap lazy.nvim，再同步插件
-    && su - coder -c "nvim --headless -c 'quit' 2>&1" || true \
-    && su - coder -c "nvim --headless '+Lazy! sync' +qa 2>&1" || true
+    && su - coder -c "nvim --headless -c 'quit'" || true \
+    && su - coder -c "nvim --headless '+Lazy! sync' +qa" || true
 
-# 设置工作目录
 WORKDIR /home/coder
-
-# 设置默认用户
 USER coder
-
-# 入口点 (Coder agent 将覆盖)
 ENTRYPOINT ["fish"]
