@@ -128,9 +128,9 @@ RUN echo 'set -gx RUSTUP_HOME /home/coder/.rustup' > /home/coder/.config/fish/co
 RUN mkdir -p /home/coder/.local/share/fnm \
     /home/coder/.rustup \
     /home/coder/.cargo \
-    && FNM_DIR=/home/coder/.local/share/fnm fnm install 'lts/*' \
+    && FNM_DIR=/home/coder/.local/share/fnm FNM_NODE_DIST_MIRROR=https://npmmirror.com/mirrors/node fnm install 'lts/*' \
     # 全局安装 claude-code
-    && FNM_DIR=/home/coder/.local/share/fnm fnm exec --using=lts/latest -- npm i -g @anthropic-ai/claude-code \
+    && FNM_DIR=/home/coder/.local/share/fnm FNM_NODE_DIST_MIRROR=https://npmmirror.com/mirrors/node fnm exec --using=lts/latest -- npm i -g @anthropic-ai/claude-code \
     && RUSTUP_HOME=/home/coder/.rustup CARGO_HOME=/home/coder/.cargo RUSTUP_DIST_SERVER=https://mirrors.ustc.edu.cn/rust-static RUSTUP_UPDATE_ROOT=https://mirrors.ustc.edu.cn/rust-static/rustup curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | RUSTUP_HOME=/home/coder/.rustup CARGO_HOME=/home/coder/.cargo RUSTUP_DIST_SERVER=https://mirrors.ustc.edu.cn/rust-static RUSTUP_UPDATE_ROOT=https://mirrors.ustc.edu.cn/rust-static/rustup sh -s -- -y --no-modify-path \
     && printf '[source.crates-io]\nreplace-with = "ustc"\n\n[source.ustc]\nregistry = "sparse+https://mirrors.ustc.edu.cn/crates.io-index/"\n\n[registries.ustc]\nindex = "sparse+https://mirrors.ustc.edu.cn/crates.io-index/"\n' > /home/coder/.cargo/config.toml \
     && chown -R coder:coder /home/coder/.config /home/coder/.local /home/coder/.rustup /home/coder/.cargo
