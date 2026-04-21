@@ -51,7 +51,7 @@ This workspace includes:
 - **Node.js (fnm)** - Fast Node Manager for Node.js version management
 - **Claude Code** - Anthropic's official CLI tool for Claude, globally installed
 - **Fish shell** - Default shell with fish configuration
-- **Common utilities** - ripgrep, fd-find, tmux, screen, htop, fastfetch
+- **Common utilities** - ripgrep, fd-find, tmux, screen, htop, fastfetch, make
 
 ### Editing the image
 
