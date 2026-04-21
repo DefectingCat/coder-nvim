@@ -37,6 +37,9 @@ RUN curl --retry 5 --retry-delay 3 -fsSL https://github.com/neovim/neovim/archiv
 # 下载 Go
 RUN curl --retry 3 --retry-delay 5 -fsSL https://go.dev/dl/go1.26.2.linux-amd64.tar.gz -o /tmp/go.tar.gz
 
+# 克隆 dotfiles 仓库（获取 fish 配置）
+RUN git clone --depth 1 https://github.com/DefectingCat/dotfiles.git /tmp/dotfiles
+
 # ============ 运行阶段 ============
 FROM rockylinux:9
 
@@ -77,6 +80,23 @@ RUN dnf -y install epel-release && \
     && dnf -y clean all \
     && rm -rf /var/cache/dnf
 
+# 安装 fish 配置依赖的工具（EPEL 中不可用，从 GitHub 下载）
+RUN curl --retry 3 --retry-delay 5 -fsSL https://github.com/starship/starship/releases/latest/download/starship-x86_64-unknown-linux-gnu.tar.gz \
+    | tar -xz -C /usr/local/bin \
+    && curl --retry 3 --retry-delay 5 -fsSL https://github.com/eza-community/eza/releases/latest/download/eza_x86_64-unknown-linux-gnu.tar.gz \
+    | tar -xz -C /usr/local/bin \
+    && LSD_VER=$(curl -fsSL https://api.github.com/repos/Peltoche/lsd/releases/latest | grep '"tag_name"' | sed 's/.*"v\(.*\)".*/\1/') \
+    && curl --retry 3 --retry-delay 5 -fsSL "https://github.com/Peltoche/lsd/releases/latest/download/lsd-v${LSD_VER}-x86_64-unknown-linux-gnu.tar.gz" \
+    | tar -xz -C /usr/local/bin --strip-components=1 "lsd-v${LSD_VER}-x86_64-unknown-linux-gnu/lsd" \
+    && BAT_VER=$(curl -fsSL https://api.github.com/repos/sharkdp/bat/releases/latest | grep '"tag_name"' | sed 's/.*"v\(.*\)".*/\1/') \
+    && curl --retry 3 --retry-delay 5 -fsSL "https://github.com/sharkdp/bat/releases/latest/download/bat-v${BAT_VER}-x86_64-unknown-linux-gnu.tar.gz" -o /tmp/bat.tar.gz \
+    && tar -xzf /tmp/bat.tar.gz -C /tmp \
+    && cp /tmp/bat-v${BAT_VER}-x86_64-unknown-linux-gnu/bat /usr/local/bin/ \
+    && rm -rf /tmp/bat* \
+    && LG_VER=$(curl -fsSL https://api.github.com/repos/jesseduffield/lazygit/releases/latest | grep '"tag_name"' | sed 's/.*"v\(.*\)".*/\1/') \
+    && curl --retry 3 --retry-delay 5 -fsSL "https://github.com/jesseduffield/lazygit/releases/latest/download/lazygit_${LG_VER}_linux_x86_64.tar.gz" \
+    | tar -xz -C /usr/local/bin lazygit
+
 # 从构建阶段复制 Neovim
 COPY --from=builder /usr/local/bin/nvim /usr/local/bin/nvim
 COPY --from=builder /usr/local/share/nvim /usr/local/share/nvim
@@ -98,18 +118,20 @@ RUN useradd -m -s /usr/bin/fish coder && \
     echo "coder ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers.d/coder && \
     chmod 0440 /etc/sudoers.d/coder
 
-# 配置 coder 用户环境和安装开发工具
-RUN mkdir -p /home/coder/.config/fish/conf.d \
-    /home/coder/.local/share/fnm \
-    /home/coder/.rustup \
-    /home/coder/.cargo \
-    && echo 'alias fd=fd-find' >> /home/coder/.config/fish/config.fish \
-    && echo 'fnm env --use-on-cd --shell fish | source' > /home/coder/.config/fish/conf.d/fnm.fish \
-    && echo 'set -gx RUSTUP_HOME /home/coder/.rustup' > /home/coder/.config/fish/conf.d/rustup.fish \
+# 从构建阶段复制 fish 配置
+COPY --from=builder /tmp/dotfiles/fish /home/coder/.config/fish
+
+# 添加 rustup/cargo 环境配置
+RUN echo 'set -gx RUSTUP_HOME /home/coder/.rustup' > /home/coder/.config/fish/conf.d/rustup.fish \
     && echo 'set -gx CARGO_HOME /home/coder/.cargo' >> /home/coder/.config/fish/conf.d/rustup.fish \
     && echo 'set -gx RUSTUP_DIST_SERVER https://mirrors.ustc.edu.cn/rust-static' >> /home/coder/.config/fish/conf.d/rustup.fish \
     && echo 'set -gx RUSTUP_UPDATE_ROOT https://mirrors.ustc.edu.cn/rust-static/rustup' >> /home/coder/.config/fish/conf.d/rustup.fish \
-    && echo 'set -gx PATH $PATH /home/coder/.cargo/bin' >> /home/coder/.config/fish/conf.d/rustup.fish \
+    && echo 'set -gx PATH $PATH /home/coder/.cargo/bin' >> /home/coder/.config/fish/conf.d/rustup.fish
+
+# 安装开发工具并设置权限
+RUN mkdir -p /home/coder/.local/share/fnm \
+    /home/coder/.rustup \
+    /home/coder/.cargo \
     && FNM_DIR=/home/coder/.local/share/fnm fnm install 'lts/*' \
     # 全局安装 claude-code
     && FNM_DIR=/home/coder/.local/share/fnm fnm exec --using=lts/latest -- npm i -g @anthropic-ai/claude-code \
