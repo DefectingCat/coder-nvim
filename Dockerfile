@@ -69,7 +69,7 @@ RUN dnf -y install epel-release && \
         -i.bak /etc/yum.repos.d/epel{,-testing}.repo \
     && dnf makecache \
     && dnf -y --allowerasing install \
-    wget git vim nano unzip zip tar gzip bzip2 xz \
+    wget git vim nano unzip zip tar gzip bzip2 xz make \
     sudo passwd openssh-server procps-ng htop net-tools bind-utils lsof strace \
     tmux screen fish \
     python3 python3-pip python3-devel \
