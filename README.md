@@ -47,8 +47,9 @@ This workspace includes:
 
 - **Neovim v0.12.1** - Modern Vim editor with Lazy.nvim plugin manager
 - **Go 1.26.2** - Go programming language
-- **Rust** - With USTC crates.io mirror configured
+- **Rust** - With USTC crates.io and rustup mirrors configured
 - **Node.js (fnm)** - Fast Node Manager for Node.js version management
+- **Claude Code** - Anthropic's official CLI tool for Claude, globally installed
 - **Fish shell** - Default shell with fish configuration
 - **Common utilities** - ripgrep, fd-find, tmux, screen, htop, fastfetch
 
