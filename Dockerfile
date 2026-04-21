@@ -74,7 +74,6 @@ RUN dnf -y install epel-release && \
     tmux screen fish \
     python3 python3-pip python3-devel \
     ripgrep fd-find fastfetch curl glibc-langpack-en \
-    && localedef -i en_US -f UTF-8 en_US.UTF-8 \
     && dnf -y clean all \
     && rm -rf /var/cache/dnf
 
