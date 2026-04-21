@@ -50,15 +50,11 @@ resource "coder_agent" "main" {
   arch           = data.coder_provisioner.me.arch
   os             = "linux"
   startup_script = <<-EOT
-    set -e
-
     # Prepare user home with default files on first start.
-    if [ ! -f ~/.init_done ]; then
+    if not test -f ~/.init_done
       cp -rT /etc/skel ~
       touch ~/.init_done
-    fi
-
-    # Add any commands that should be executed at workspace startup (e.g install requirements, start a program, etc) here
+    end
   EOT
 
   # These environment variables allow you to make Git commits right away after creating a
@@ -96,7 +92,7 @@ resource "coder_agent" "main" {
   metadata {
     display_name = "Home Disk"
     key          = "3_home_disk"
-    script       = "coder stat disk --path $${HOME}"
+    script       = "coder stat disk --path {$HOME}"
     interval     = 60
     timeout      = 1
   }
@@ -122,7 +118,7 @@ resource "coder_agent" "main" {
     key          = "6_load_host"
     # get load avg scaled by number of cores
     script   = <<EOT
-      echo "`cat /proc/loadavg | awk '{ print $1 }'` `nproc`" | awk '{ printf "%0.2f", $1/$2 }'
+      echo "`cat /proc/loadavg | awk '{ print $1 }'` `nproc`" | awk '{ printf "%0.2f", ($2 > 0) ? $1/$2 : 0 }'
     EOT
     interval = 60
     timeout  = 1
