@@ -26,8 +26,9 @@ RUN dnf -y install epel-release && \
     && dnf makecache \
     && dnf -y --allowerasing install git curl unzip
 
-# 下载 Go
-RUN curl --retry 3 --retry-delay 5 -fsSL https://go.dev/dl/go1.26.2.linux-amd64.tar.gz -o /tmp/go.tar.gz
+# 下载 Go（自动获取最新稳定版）
+RUN GO_VER=$(curl -fsSL 'https://go.dev/VERSION?m=text' | head -1) \
+    && curl --retry 3 --retry-delay 5 -fsSL "https://go.dev/dl/${GO_VER}.linux-amd64.tar.gz" -o /tmp/go.tar.gz
 
 # 克隆 dotfiles 仓库
 RUN git clone --depth 1 https://github.com/DefectingCat/dotfiles.git /tmp/dotfiles
@@ -141,8 +142,9 @@ COPY --from=builder /tmp/dotfiles/fish /home/coder/.config/fish
 # 从构建阶段复制 nvim 配置
 COPY --from=builder /tmp/nvim-config /home/coder/.config/nvim
 
-# 添加 rustup/cargo 环境配置
-RUN echo 'set -gx RUSTUP_HOME /home/coder/.rustup' > /home/coder/.config/fish/conf.d/rustup.fish \
+# 添加 Go/fnm/rustup 环境配置
+RUN echo 'set -gx PATH $PATH /usr/local/go/bin /usr/local/fnm' > /home/coder/.config/fish/conf.d/path.fish \
+    && echo 'set -gx RUSTUP_HOME /home/coder/.rustup' > /home/coder/.config/fish/conf.d/rustup.fish \
     && echo 'set -gx CARGO_HOME /home/coder/.cargo' >> /home/coder/.config/fish/conf.d/rustup.fish \
     && echo 'set -gx RUSTUP_DIST_SERVER https://mirrors.ustc.edu.cn/rust-static' >> /home/coder/.config/fish/conf.d/rustup.fish \
     && echo 'set -gx RUSTUP_UPDATE_ROOT https://mirrors.ustc.edu.cn/rust-static/rustup' >> /home/coder/.config/fish/conf.d/rustup.fish \
