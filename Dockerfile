@@ -24,15 +24,7 @@ RUN dnf -y install epel-release && \
         -e 's|^#baseurl=https\?://download.example/pub/epel/|baseurl=https://mirrors.ustc.edu.cn/epel/|g' \
         -i.bak /etc/yum.repos.d/epel{,-testing}.repo \
     && dnf makecache \
-    && dnf -y --allowerasing install git cmake ninja-build gcc gcc-c++ make gettext curl glibc-gconv-extra
-
-# 编译 Neovim v0.12.1 (使用 tarball 下载，更稳定)
-RUN curl --retry 5 --retry-delay 3 -fsSL https://github.com/neovim/neovim/archive/refs/tags/v0.12.1.tar.gz -o /tmp/neovim.tar.gz \
-    && tar -xzf /tmp/neovim.tar.gz -C /tmp \
-    && cd /tmp/neovim-0.12.1 \
-    && make CMAKE_BUILD_TYPE=Release \
-    && make install \
-    && rm -rf /tmp/neovim-0.12.1 /tmp/neovim.tar.gz
+    && dnf -y --allowerasing install git curl
 
 # 下载 Go
 RUN curl --retry 3 --retry-delay 5 -fsSL https://go.dev/dl/go1.26.2.linux-amd64.tar.gz -o /tmp/go.tar.gz
@@ -97,9 +89,13 @@ RUN curl --retry 3 --retry-delay 5 -fsSL https://github.com/starship/starship/re
     && curl --retry 3 --retry-delay 5 -fsSL "https://github.com/jesseduffield/lazygit/releases/latest/download/lazygit_${LG_VER}_linux_x86_64.tar.gz" \
     | tar -xz -C /usr/local/bin lazygit
 
-# 从构建阶段复制 Neovim
-COPY --from=builder /usr/local/bin/nvim /usr/local/bin/nvim
-COPY --from=builder /usr/local/share/nvim /usr/local/share/nvim
+# 下载最新版 Neovim 预编译二进制
+RUN curl --retry 5 --retry-delay 3 -fsSL "https://github.com/neovim/neovim/releases/latest/download/nvim-linux-x86_64.tar.gz" -o /tmp/nvim.tar.gz \
+    && tar -xzf /tmp/nvim.tar.gz -C /tmp \
+    && cp /tmp/nvim-linux-x86_64/bin/nvim /usr/local/bin/nvim \
+    && cp -r /tmp/nvim-linux-x86_64/lib /usr/local/lib \
+    && cp -r /tmp/nvim-linux-x86_64/share/nvim /usr/local/share/nvim \
+    && rm -rf /tmp/nvim-linux-x86_64 /tmp/nvim.tar.gz
 
 # 从构建阶段复制并安装 Go
 COPY --from=builder /tmp/go.tar.gz /tmp/go.tar.gz
