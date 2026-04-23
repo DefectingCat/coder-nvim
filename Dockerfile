@@ -139,6 +139,10 @@ RUN useradd -m -s /usr/bin/fish coder && \
 # 从构建阶段复制 fish 配置
 COPY --from=builder /tmp/dotfiles/fish /home/coder/.config/fish
 
+# 从构建阶段复制 tmux 配置
+COPY --from=builder /tmp/dotfiles/tmux /home/coder/.config/tmux
+RUN ln -sf /home/coder/.config/tmux/tmux.conf /home/coder/.tmux.conf
+
 # 从构建阶段复制 nvim 配置
 COPY --from=builder /tmp/nvim-config /home/coder/.config/nvim
 
