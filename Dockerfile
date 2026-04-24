@@ -110,17 +110,15 @@ RUN dnf -y install epel-release && \
     python3 python3-pip python3-devel \
     ripgrep fd-find fastfetch curl glibc-langpack-en \
     && dnf -y clean all \
-    && rm -rf /var/cache/dnf
+    && rm -rf /var/cache/dnf /var/lib/dnf /var/log/dnf* \
+    && rm -rf /usr/share/{man,doc,info,licenses} /usr/share/locale/*/LC_MESSAGES 2>/dev/null; : \
+    && pip3 cache purge 2>/dev/null; :
 
 # 从构建阶段复制二进制工具
-COPY --from=builder /usr/local/bin/starship /usr/local/bin/starship
-COPY --from=builder /usr/local/bin/eza /usr/local/bin/eza
-COPY --from=builder /usr/local/bin/lsd /usr/local/bin/lsd
-COPY --from=builder /usr/local/bin/bat /usr/local/bin/bat
-COPY --from=builder /usr/local/bin/lazygit /usr/local/bin/lazygit
+COPY --from=builder /usr/local/bin/starship /usr/local/bin/eza /usr/local/bin/lsd /usr/local/bin/bat /usr/local/bin/lazygit /usr/local/bin/crush /usr/local/bin/
 
 # 从构建阶段复制 Neovim
-COPY --from=builder /usr/local/bin/nvim /usr/local/bin/nvim
+COPY --from=builder /usr/local/bin/nvim /usr/local/bin/
 COPY --from=builder /usr/local/lib/nvim /usr/local/lib/nvim
 COPY --from=builder /usr/local/share/nvim /usr/local/share/nvim
 
@@ -128,9 +126,6 @@ COPY --from=builder /usr/local/share/nvim /usr/local/share/nvim
 COPY --from=builder /usr/local/go /usr/local/go
 
 ENV PATH=$PATH:/usr/local/go/bin
-
-# 从构建阶段复制 Go 工具
-COPY --from=builder /usr/local/bin/crush /usr/local/bin/crush
 
 # 从构建阶段复制 fnm
 COPY --from=builder /usr/local/fnm /usr/local/fnm
@@ -166,9 +161,11 @@ RUN mkdir -p /home/coder/.local/share/fnm \
     && FNM_DIR=/home/coder/.local/share/fnm FNM_NODE_DIST_MIRROR=https://npmmirror.com/mirrors/node fnm install 'lts/*' \
     # 全局安装 claude-code
     && FNM_DIR=/home/coder/.local/share/fnm FNM_NODE_DIST_MIRROR=https://npmmirror.com/mirrors/node fnm exec --using=lts/latest -- npm i -g @anthropic-ai/claude-code \
+    && FNM_DIR=/home/coder/.local/share/fnm fnm exec --using=lts/latest -- npm cache clean --force \
     && RUSTUP_HOME=/home/coder/.rustup CARGO_HOME=/home/coder/.cargo RUSTUP_DIST_SERVER=https://mirrors.ustc.edu.cn/rust-static RUSTUP_UPDATE_ROOT=https://mirrors.ustc.edu.cn/rust-static/rustup curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | RUSTUP_HOME=/home/coder/.rustup CARGO_HOME=/home/coder/.cargo RUSTUP_DIST_SERVER=https://mirrors.ustc.edu.cn/rust-static RUSTUP_UPDATE_ROOT=https://mirrors.ustc.edu.cn/rust-static/rustup sh -s -- -y --no-modify-path \
     && printf '[source.crates-io]\nreplace-with = "ustc"\n\n[source.ustc]\nregistry = "sparse+https://mirrors.ustc.edu.cn/crates.io-index/"\n\n[registries.ustc]\nindex = "sparse+https://mirrors.ustc.edu.cn/crates.io-index/"\n' > /home/coder/.cargo/config.toml \
-    && chown -R coder:coder /home/coder/.config /home/coder/.local /home/coder/.rustup /home/coder/.cargo
+    && chown -R coder:coder /home/coder/.config /home/coder/.local /home/coder/.rustup /home/coder/.cargo \
+    && rm -rf /tmp/* /home/coder/.cache/pip /root/.cache/pip 2>/dev/null; :
 
 # 安装 nvim 插件
 RUN mkdir -p /home/coder/.local/share/nvim \
@@ -176,7 +173,8 @@ RUN mkdir -p /home/coder/.local/share/nvim \
     /home/coder/.cache/nvim \
     && chown -R coder:coder /home/coder/.config /home/coder/.local /home/coder/.cache \
     && su - coder -c "nvim --headless -c 'quit'" || true \
-    && su - coder -c "nvim --headless '+Lazy! sync' +qa" || true
+    && su - coder -c "nvim --headless '+Lazy! sync' +qa" || true \
+    && rm -rf /tmp/* /root/.npm /home/coder/.npm 2>/dev/null; :
 
 WORKDIR /home/coder
 USER coder
