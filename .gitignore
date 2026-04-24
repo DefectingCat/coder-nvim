@@ -1,2 +1,6 @@
 # OMC 工具配置（本地专用）
 .omc/
+
+# Terraform
+.terraform/
+.terraform.lock.hcl
