@@ -211,10 +211,10 @@ resource "docker_container" "workspace" {
 
   # Health check
   healthcheck {
-    test     = ["CMD-SHELL", "pgrep fish || exit 1"]
-    interval = "30s"
-    timeout  = "5s"
-    retries  = 3
+    test         = ["CMD-SHELL", "pgrep fish || exit 1"]
+    interval     = "30s"
+    timeout      = "5s"
+    retries      = 3
     start_period = "10s"
   }
 
