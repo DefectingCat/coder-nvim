@@ -26,9 +26,13 @@ RUN dnf -y install epel-release && \
     && dnf makecache \
     && dnf -y --allowerasing install git curl unzip
 
-# 下载 Go（自动获取最新稳定版）
+# 下载并解压 Go（自动获取最新稳定版）
 RUN GO_VER=$(curl -fsSL 'https://go.dev/VERSION?m=text' | head -1) \
-    && curl --retry 3 --retry-delay 5 -fsSL "https://go.dev/dl/${GO_VER}.linux-amd64.tar.gz" -o /tmp/go.tar.gz
+    && curl --retry 3 --retry-delay 5 -fsSL "https://go.dev/dl/${GO_VER}.linux-amd64.tar.gz" -o /tmp/go.tar.gz \
+    && tar -C /usr/local -xzf /tmp/go.tar.gz \
+    && rm /tmp/go.tar.gz
+
+ENV PATH=$PATH:/usr/local/go/bin
 
 # 克隆 dotfiles 仓库
 RUN git clone --depth 1 https://github.com/DefectingCat/dotfiles.git /tmp/dotfiles
@@ -36,7 +40,8 @@ RUN git clone --depth 1 https://github.com/DefectingCat/dotfiles.git /tmp/dotfil
 # 克隆 nvim 配置仓库
 RUN git clone --depth 1 https://github.com/DefectingCat/nvim /tmp/nvim-config
 
-# 下载 GitHub 二进制工具
+# 下载 Go 工具
+RUN GOBIN=/usr/local/bin go install github.com/charmbracelet/crush@latest
 RUN curl --retry 3 --retry-delay 5 -fsSL https://github.com/starship/starship/releases/latest/download/starship-x86_64-unknown-linux-gnu.tar.gz \
     | tar -xz -C /usr/local/bin \
     && curl --retry 3 --retry-delay 5 -fsSL https://github.com/eza-community/eza/releases/latest/download/eza_x86_64-unknown-linux-gnu.tar.gz \
@@ -119,13 +124,13 @@ COPY --from=builder /usr/local/bin/nvim /usr/local/bin/nvim
 COPY --from=builder /usr/local/lib/nvim /usr/local/lib/nvim
 COPY --from=builder /usr/local/share/nvim /usr/local/share/nvim
 
-# 从构建阶段复制并安装 Go
-COPY --from=builder /tmp/go.tar.gz /tmp/go.tar.gz
-RUN rm -rf /usr/local/go \
-    && tar -C /usr/local -xzf /tmp/go.tar.gz \
-    && rm /tmp/go.tar.gz
+# 从构建阶段复制 Go
+COPY --from=builder /usr/local/go /usr/local/go
 
 ENV PATH=$PATH:/usr/local/go/bin
+
+# 从构建阶段复制 Go 工具
+COPY --from=builder /usr/local/bin/crush /usr/local/bin/crush
 
 # 从构建阶段复制 fnm
 COPY --from=builder /usr/local/fnm /usr/local/fnm
