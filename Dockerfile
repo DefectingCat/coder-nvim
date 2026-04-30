@@ -106,13 +106,22 @@ RUN dnf -y install epel-release && \
     && dnf -y --allowerasing install \
     wget git vim nano unzip zip tar gzip bzip2 xz make \
     sudo passwd openssh-server procps-ng htop net-tools bind-utils lsof strace \
-    tmux screen fish \
+    tmux screen fish util-linux-user \
     python3 python3-pip python3-devel \
     ripgrep fd-find fastfetch curl glibc-langpack-en \
     && dnf -y clean all \
     && rm -rf /var/cache/dnf /var/lib/dnf /var/log/dnf* \
     && rm -rf /usr/share/{man,doc,info,licenses} /usr/share/locale/*/LC_MESSAGES 2>/dev/null; : \
     && pip3 cache purge 2>/dev/null; :
+
+# 安装 Docker CLI
+RUN dnf -y install dnf-utils && \
+    dnf config-manager --add-repo https://mirrors.aliyun.com/docker-ce/linux/centos/docker-ce.repo && \
+    sed -i 's|https://download.docker.com|https://mirrors.aliyun.com/docker-ce|g' /etc/yum.repos.d/docker-ce.repo && \
+    dnf makecache && \
+    dnf -y install docker-ce-cli && \
+    dnf -y clean all && \
+    rm -rf /var/cache/dnf
 
 # 从构建阶段复制二进制工具
 COPY --from=builder /usr/local/bin/starship /usr/local/bin/eza /usr/local/bin/lsd /usr/local/bin/bat /usr/local/bin/lazygit /usr/local/bin/crush /usr/local/bin/
@@ -135,6 +144,30 @@ RUN ln -s /usr/local/fnm/fnm /usr/local/bin/fnm
 RUN useradd -m -s /usr/bin/fish coder && \
     echo "coder ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers.d/coder && \
     chmod 0440 /etc/sudoers.d/coder
+
+# 创建 docker socket 权限修复脚本
+RUN echo '#!/bin/sh' > /usr/local/bin/fix-docker-sock.sh && \
+    echo 'if [ -S /var/run/docker.sock ]; then' >> /usr/local/bin/fix-docker-sock.sh && \
+    echo '  DOCKER_GID=$(stat -c "%g" /var/run/docker.sock 2>/dev/null)' >> /usr/local/bin/fix-docker-sock.sh && \
+    echo '  if [ -n "$DOCKER_GID" ]; then' >> /usr/local/bin/fix-docker-sock.sh && \
+    echo '    CURRENT_DOCKER_GID=$(grep "^docker:" /etc/group | cut -d: -f3)' >> /usr/local/bin/fix-docker-sock.sh && \
+    echo '    if [ -z "$CURRENT_DOCKER_GID" ]; then' >> /usr/local/bin/fix-docker-sock.sh && \
+    echo '      groupadd -g "$DOCKER_GID" docker' >> /usr/local/bin/fix-docker-sock.sh && \
+    echo '    elif [ "$CURRENT_DOCKER_GID" != "$DOCKER_GID" ]; then' >> /usr/local/bin/fix-docker-sock.sh && \
+    echo '      groupmod -g "$DOCKER_GID" docker 2>/dev/null || true' >> /usr/local/bin/fix-docker-sock.sh && \
+    echo '    fi' >> /usr/local/bin/fix-docker-sock.sh && \
+    echo '    usermod -aG docker coder 2>/dev/null || true' >> /usr/local/bin/fix-docker-sock.sh && \
+    echo '    chmod 660 /var/run/docker.sock 2>/dev/null || true' >> /usr/local/bin/fix-docker-sock.sh && \
+    echo '  fi' >> /usr/local/bin/fix-docker-sock.sh && \
+    echo 'fi' >> /usr/local/bin/fix-docker-sock.sh && \
+    chmod +x /usr/local/bin/fix-docker-sock.sh
+
+# 创建 docker wrapper 脚本（如果权限不够则自动使用 sudo）
+RUN mkdir -p /home/coder/.config/fish/conf.d && \
+    echo 'IyEvYmluL3NoCmlmIFsgLXcgL3Zhci9ydW4vZG9ja2VyLnNvY2sgXTsgdGhlbgogIGV4ZWMgZG9ja2VyICIkQCIKZmkKZXhlYyBzdWRvIGRvY2tlciAiJEAiCg==' | base64 -d > /usr/local/bin/docker-wrapper && \
+    chmod +x /usr/local/bin/docker-wrapper && \
+    echo 'alias docker docker-wrapper' > /home/coder/.config/fish/conf.d/docker.fish && \
+    chown -R coder:coder /home/coder/.config/fish/conf.d/docker.fish
 
 # 从构建阶段复制 fish 配置
 COPY --from=builder /tmp/dotfiles/fish /home/coder/.config/fish

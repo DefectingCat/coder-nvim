@@ -55,6 +55,14 @@ resource "coder_agent" "main" {
       cp -rT /etc/skel ~
       touch ~/.init_done
     end
+    # Activate docker group for current session if docker socket is available
+    if test -S /var/run/docker.sock
+      set -l DOCKER_GID (stat -c '%g' /var/run/docker.sock 2>/dev/null)
+      if test -n "$DOCKER_GID"
+        # Re-add ourselves to docker group (will take effect for new subshells)
+        sudo usermod -aG docker coder 2>/dev/null
+      end
+    end
   EOT
 
   # These environment variables allow you to make Git commits right away after creating a
@@ -197,7 +205,7 @@ resource "docker_container" "workspace" {
   # Hostname makes the shell more user friendly: coder@my-workspace:~$
   hostname = data.coder_workspace.me.name
   # Use the docker gateway if the access URL is 127.0.0.1
-  entrypoint = ["sh", "-c", replace(coder_agent.main.init_script, "/localhost|127\\.0\\.0\\.1/", "host.docker.internal")]
+  entrypoint = ["sh", "-c", "/usr/local/bin/fix-docker-sock.sh && ${replace(coder_agent.main.init_script, "/localhost|127\\.0\\.0\\.1/", "host.docker.internal")}"]
   env        = ["CODER_AGENT_TOKEN=${coder_agent.main.token}"]
   host {
     host = "host.docker.internal"
@@ -206,6 +214,13 @@ resource "docker_container" "workspace" {
   volumes {
     container_path = "/home/coder"
     volume_name    = docker_volume.home_volume.name
+    read_only      = false
+  }
+
+  # 挂载 Docker socket（Docker-out-of-Docker）
+  volumes {
+    container_path = "/var/run/docker.sock"
+    host_path      = "/var/run/docker.sock"
     read_only      = false
   }
 
