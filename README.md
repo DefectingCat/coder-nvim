@@ -65,10 +65,19 @@ This template supports HTTP/HTTPS proxy configuration during Docker image build.
 - `https_proxy`
 - `no_proxy`
 
-## Resource Limits
+## Build locally
 
-The workspace container has the following resource limits:
+```sh
+docker build --progress=plain -t coder-rocky-dev .
+```
 
-- CPU shares: 1024
-- Memory: 4GB
-- Health check: Every 30 seconds
+```sh
+docker build --force --progress=plain -t coder-rocky-dev .
+```
+
+```sh
+docker run -it --rm \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  coder-rocky-dev:latest
+```
+
